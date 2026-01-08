@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tomcat Monitoring Toolkit</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+        
+        nav {
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 0;
+        }
+        
+        nav ul {
+            list-style: none;
+            display: flex;
+        }
+        
+        nav li a {
+            display: block;
+            padding: 15px 25px;
+            text-decoration: none;
+            color: #333;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+        
+        nav li a:hover, nav li a.active {
+            border-bottom-color: #667eea;
+            color: #667eea;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .card h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #555;
+        }
+        
+        .health-score {
+            text-align: center;
+            padding: 30px 0;
+        }
+        
+        .health-score .score {
+            font-size: 64px;
+            font-weight: bold;
+        }
+        
+        .health-score .label {
+            font-size: 14px;
+            text-transform: uppercase;
+            margin-top: 10px;
+            font-weight: 600;
+        }
+        
+        .status-healthy { color: #4caf50; }
+        .status-warning { color: #ff9800; }
+        .status-critical { color: #f44336; }
+        
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .metric-row:last-child {
+            border-bottom: none;
+        }
+        
+        .metric-label {
+            font-weight: 500;
+            color: #666;
+        }
+        
+        .metric-value {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #eee;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            transition: width 0.3s, background-color 0.3s;
+        }
+        
+        .alert-item {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid;
+        }
+        
+        .alert-critical {
+            background: #ffebee;
+            border-left-color: #f44336;
+        }
+        
+        .alert-warning {
+            background: #fff3e0;
+            border-left-color: #ff9800;
+        }
+        
+        .alert-info {
+            background: #e3f2fd;
+            border-left-color: #2196f3;
+        }
+        
+        .alert-title {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .alert-message {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .chart-container {
+            height: 300px;
+            margin-top: 15px;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .badge-connected {
+            background: #e8f5e9;
+            color: #4caf50;
+        }
+        
+        .badge-disconnected {
+            background: #ffebee;
+            color: #f44336;
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        
+        .refresh-info {
+            text-align: center;
+            color: #999;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 Tomcat Monitoring Toolkit</h1>
+        <p>Real-time monitoring and health analysis</p>
+    </div>
+    
+    <nav>
+        <ul>
+            <li><a href="/" class="active">Dashboard</a></li>
+            <li><a href="/alerts">Alerts</a></li>
+            <li><a href="/metrics">Metrics</a></li>
+        </ul>
+    </nav>
+    
+    <div class="container">
+        <div class="dashboard">
+            <!-- Health Score Card -->
+            <div class="card">
+                <h2>Overall Health Score</h2>
+                <div class="health-score">
+                    <div class="score" id="health-score">--</div>
+                    <div class="label" id="health-status">Loading...</div>
+                </div>
+                <div class="refresh-info">Auto-refresh: 10s</div>
+            </div>
+            
+            <!-- JMX Status Card -->
+            <div class="card">
+                <h2>Connection Status</h2>
+                <div class="metric-row">
+                    <span class="metric-label">JMX</span>
+                    <span id="jmx-status" class="status-badge badge-disconnected">Disconnected</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Monitoring</span>
+                    <span id="monitoring-status" class="status-badge badge-disconnected">Inactive</span>
+                </div>
+            </div>
+            
+            <!-- Active Alerts Card -->
+            <div class="card">
+                <h2>Active Alerts</h2>
+                <div id="alerts-summary" class="loading">Loading...</div>
+            </div>
+        </div>
+        
+        <!-- Metrics Grid -->
+        <div class="dashboard">
+            <!-- Heap Usage -->
+            <div class="card">
+                <h2>Heap Usage</h2>
+                <div id="heap-metrics">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+            
+            <!-- Thread Pool -->
+            <div class="card">
+                <h2>Thread Pool</h2>
+                <div id="thread-pool-metrics">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+            
+            <!-- CPU & Memory -->
+            <div class="card">
+                <h2>System Resources</h2>
+                <div id="system-metrics">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+            
+            <!-- Stuck Threads -->
+            <div class="card">
+                <h2>Thread Analysis</h2>
+                <div id="thread-metrics">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Heap Trend Chart -->
+        <div class="card">
+            <h2>Heap Usage Trend (Last Hour)</h2>
+            <div class="chart-container">
+                <canvas id="heap-chart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>
+        let heapChart = null;
+        
+        function updateDashboard() {
+            fetch('/api/status')
+                .then(response => response.json())
+                .then(data => {
+                    updateHealthScore(data.health);
+                    updateConnectionStatus(data);
+                    updateAlertsSummary(data.active_alerts);
+                    updateMetrics(data.metrics);
+                })
+                .catch(error => console.error('Error fetching status:', error));
+            
+            fetch('/api/heap_trend')
+                .then(response => response.json())
+                .then(data => {
+                    updateHeapChart(data.data);
+                })
+                .catch(error => console.error('Error fetching heap trend:', error));
+        }
+        
+        function updateHealthScore(health) {
+            const scoreEl = document.getElementById('health-score');
+            const statusEl = document.getElementById('health-status');
+            
+            if (!health || health.error) {
+                scoreEl.textContent = '--';
+                statusEl.textContent = 'Error';
+                statusEl.className = 'label status-critical';
+                return;
+            }
+            
+            const score = health.overall_score || 0;
+            scoreEl.textContent = score.toFixed(0);
+            statusEl.textContent = health.health_status || 'unknown';
+            
+            // Color based on status
+            const status = health.health_status;
+            if (status === 'healthy') {
+                scoreEl.className = 'score status-healthy';
+                statusEl.className = 'label status-healthy';
+            } else if (status === 'warning') {
+                scoreEl.className = 'score status-warning';
+                statusEl.className = 'label status-warning';
+            } else {
+                scoreEl.className = 'score status-critical';
+                statusEl.className = 'label status-critical';
+            }
+        }
+        
+        function updateConnectionStatus(data) {
+            const jmxEl = document.getElementById('jmx-status');
+            const monitorEl = document.getElementById('monitoring-status');
+            
+            jmxEl.textContent = data.jmx_connected ? 'Connected' : 'Simulated';
+            jmxEl.className = 'status-badge ' + (data.jmx_connected ? 'badge-connected' : 'badge-disconnected');
+            
+            monitorEl.textContent = data.monitoring_active ? 'Active' : 'Inactive';
+            monitorEl.className = 'status-badge ' + (data.monitoring_active ? 'badge-connected' : 'badge-disconnected');
+        }
+        
+        function updateAlertsSummary(alerts) {
+            const container = document.getElementById('alerts-summary');
+            
+            if (!alerts || alerts.length === 0) {
+                container.innerHTML = '<div class="no-data">No active alerts ✓</div>';
+                return;
+            }
+            
+            const critical = alerts.filter(a => a.level === 'critical').length;
+            const warning = alerts.filter(a => a.level === 'warning').length;
+            
+            container.innerHTML = `
+                <div class="metric-row">
+                    <span class="metric-label">Critical</span>
+                    <span class="metric-value status-critical">${critical}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Warning</span>
+                    <span class="metric-value status-warning">${warning}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Total</span>
+                    <span class="metric-value">${alerts.length}</span>
+                </div>
+            `;
+        }
+        
+        function updateMetrics(metrics) {
+            if (!metrics) return;
+            
+            // Heap metrics
+            if (metrics.heap) {
+                const heap = metrics.heap;
+                const usedMB = (heap.used / (1024 * 1024)).toFixed(0);
+                const maxMB = (heap.max / (1024 * 1024)).toFixed(0);
+                const percent = (heap.usage_percent * 100).toFixed(1);
+                
+                document.getElementById('heap-metrics').innerHTML = `
+                    <div class="metric-row">
+                        <span class="metric-label">Used</span>
+                        <span class="metric-value">${usedMB} MB</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Max</span>
+                        <span class="metric-value">${maxMB} MB</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Usage</span>
+                        <span class="metric-value ${getColorClass(heap.usage_percent)}">${percent}%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill ${getColorClass(heap.usage_percent)}" style="width: ${percent}%; background: ${getColor(heap.usage_percent)}"></div>
+                    </div>
+                `;
+            }
+            
+            // Thread pool metrics
+            if (metrics.thread_pool) {
+                const tp = metrics.thread_pool;
+                const util = (tp.utilization * 100).toFixed(1);
+                
+                document.getElementById('thread-pool-metrics').innerHTML = `
+                    <div class="metric-row">
+                        <span class="metric-label">Busy Threads</span>
+                        <span class="metric-value">${tp.current_busy}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Total Threads</span>
+                        <span class="metric-value">${tp.current_threads}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Max Threads</span>
+                        <span class="metric-value">${tp.max_threads}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Utilization</span>
+                        <span class="metric-value ${getColorClass(tp.utilization)}">${util}%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${util}%; background: ${getColor(tp.utilization)}"></div>
+                    </div>
+                `;
+            }
+            
+            // System metrics
+            if (metrics.os) {
+                const cpu = metrics.os.cpu?.cpu_percent || 0;
+                const mem = metrics.os.memory?.percent || 0;
+                
+                document.getElementById('system-metrics').innerHTML = `
+                    <div class="metric-row">
+                        <span class="metric-label">CPU Usage</span>
+                        <span class="metric-value ${getColorClass(cpu/100)}">${cpu.toFixed(1)}%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${cpu}%; background: ${getColor(cpu/100)}"></div>
+                    </div>
+                    <div class="metric-row" style="margin-top: 10px;">
+                        <span class="metric-label">Memory Usage</span>
+                        <span class="metric-value ${getColorClass(mem/100)}">${mem.toFixed(1)}%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${mem}%; background: ${getColor(mem/100)}"></div>
+                    </div>
+                `;
+            }
+            
+            // Thread metrics
+            const stuckThreads = metrics.stuck_threads || 0;
+            const oomPred = metrics.oom_prediction;
+            
+            let oomInfo = '<div class="metric-row"><span class="metric-label">OOM Prediction</span><span class="metric-value status-healthy">None</span></div>';
+            if (oomPred && oomPred.predicted) {
+                const minutes = (oomPred.time_to_oom_seconds / 60).toFixed(0);
+                oomInfo = `<div class="metric-row"><span class="metric-label">OOM in</span><span class="metric-value status-critical">${minutes} min</span></div>`;
+            }
+            
+            document.getElementById('thread-metrics').innerHTML = `
+                <div class="metric-row">
+                    <span class="metric-label">Stuck Threads</span>
+                    <span class="metric-value ${stuckThreads > 0 ? 'status-critical' : 'status-healthy'}">${stuckThreads}</span>
+                </div>
+                ${oomInfo}
+            `;
+        }
+        
+        function updateHeapChart(data) {
+            if (!data || data.length === 0) return;
+            
+            const ctx = document.getElementById('heap-chart').getContext('2d');
+            
+            const labels = data.map(d => {
+                const date = new Date(d.timestamp * 1000);
+                return date.toLocaleTimeString();
+            });
+            
+            const usedData = data.map(d => d.used_mb);
+            const maxData = data.map(d => d.max_mb);
+            
+            if (heapChart) {
+                heapChart.destroy();
+            }
+            
+            heapChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Used Heap (MB)',
+                            data: usedData,
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Max Heap (MB)',
+                            data: maxData,
+                            borderColor: '#f44336',
+                            borderDash: [5, 5],
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+        
+        function getColorClass(percent) {
+            if (percent < 0.7) return 'status-healthy';
+            if (percent < 0.85) return 'status-warning';
+            return 'status-critical';
+        }
+        
+        function getColor(percent) {
+            if (percent < 0.7) return '#4caf50';
+            if (percent < 0.85) return '#ff9800';
+            return '#f44336';
+        }
+        
+        // Initial load
+        updateDashboard();
+        
+        // Auto-refresh every 10 seconds
+        setInterval(updateDashboard, 10000);
+    </script>
+</body>
+</html>
