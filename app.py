@@ -31,7 +31,7 @@ def init_app(config_path: str = 'config.yaml'):
     coordinator = MonitoringCoordinator(config)
     
     # Start monitoring
-    monitoring_config = config.get('monitoring', {})
+    monitoring_config = config['monitoring']
     interval = monitoring_config.get('thread_dump_interval', 30)
     coordinator.start_monitoring(interval=interval)
     
@@ -189,7 +189,7 @@ if __name__ == '__main__':
     init_app()
     
     # Run Flask
-    ui_config = coordinator.config.get('ui', {})
+    ui_config = coordinator.config['ui']
     app.run(
         host=ui_config.get('host', '0.0.0.0'),
         port=ui_config.get('port', 5000),
