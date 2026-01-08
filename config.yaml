@@ -1,0 +1,87 @@
+# Tomcat Monitoring Toolkit Configuration
+
+# JMX Connection Settings
+jmx:
+  host: localhost
+  port: 9999
+  # Read-only JMX access
+  readonly: true
+  connection_timeout: 10
+
+# Tomcat Settings
+tomcat:
+  access_log_path: /var/log/tomcat/access.log
+  slow_request_threshold: 5000  # milliseconds
+  thread_pool_warn_threshold: 0.7  # 70% utilization
+  thread_pool_critical_threshold: 0.9  # 90% utilization
+
+# Monitoring Thresholds
+monitoring:
+  # Heap monitoring
+  heap_warn_threshold: 0.7  # 70% of max heap
+  heap_critical_threshold: 0.85  # 85% of max heap
+  oldgen_warn_threshold: 0.75
+  oldgen_critical_threshold: 0.9
+  
+  # OOM Prediction
+  oom_prediction_enabled: true
+  heap_growth_window: 300  # seconds (5 minutes)
+  oom_prediction_threshold: 3600  # seconds (1 hour)
+  
+  # Thread monitoring
+  thread_dump_interval: 30  # seconds
+  blocked_thread_threshold: 5  # consecutive blocked checks
+  
+  # OS metrics
+  cpu_warn_threshold: 0.8
+  cpu_critical_threshold: 0.95
+  memory_warn_threshold: 0.8
+  memory_critical_threshold: 0.9
+  disk_warn_threshold: 0.8
+  disk_critical_threshold: 0.9
+
+# Health Score Weights (sum should be 1.0)
+health_score:
+  heap_weight: 0.25
+  thread_pool_weight: 0.25
+  cpu_weight: 0.2
+  memory_weight: 0.15
+  stuck_threads_weight: 0.15
+
+# Alerting
+alerts:
+  enabled: true
+  email:
+    enabled: false
+    smtp_host: smtp.gmail.com
+    smtp_port: 587
+    smtp_user: your-email@example.com
+    smtp_password: your-password
+    from_addr: tomcat-monitor@example.com
+    to_addrs:
+      - ops-team@example.com
+    use_tls: true
+  
+  webhook:
+    enabled: false
+    url: https://hooks.example.com/webhook
+    method: POST
+    headers:
+      Content-Type: application/json
+    timeout: 10
+
+  # Alert throttling
+  throttle_minutes: 15  # Don't send same alert type more than once per 15 min
+
+# Flask UI Settings
+ui:
+  host: 0.0.0.0
+  port: 5000
+  debug: false
+  
+# Logging
+logging:
+  level: INFO  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  file: /var/log/tomcat-monitor/monitor.log
+  max_bytes: 10485760  # 10MB
+  backup_count: 5
