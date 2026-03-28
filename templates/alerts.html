@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alerts - Tomcat Monitoring Toolkit</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+        
+        nav {
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 0;
+        }
+        
+        nav ul {
+            list-style: none;
+            display: flex;
+        }
+        
+        nav li a {
+            display: block;
+            padding: 15px 25px;
+            text-decoration: none;
+            color: #333;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+        
+        nav li a:hover, nav li a.active {
+            border-bottom-color: #667eea;
+            color: #667eea;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .card h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #555;
+        }
+        
+        .alert-item {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid;
+        }
+        
+        .alert-critical {
+            background: #ffebee;
+            border-left-color: #f44336;
+        }
+        
+        .alert-warning {
+            background: #fff3e0;
+            border-left-color: #ff9800;
+        }
+        
+        .alert-info {
+            background: #e3f2fd;
+            border-left-color: #2196f3;
+        }
+        
+        .alert-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        
+        .alert-title {
+            font-weight: 600;
+            font-size: 16px;
+        }
+        
+        .alert-level {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .level-critical {
+            background: #f44336;
+            color: white;
+        }
+        
+        .level-warning {
+            background: #ff9800;
+            color: white;
+        }
+        
+        .level-info {
+            background: #2196f3;
+            color: white;
+        }
+        
+        .alert-message {
+            font-size: 14px;
+            color: #666;
+            margin: 5px 0;
+        }
+        
+        .alert-details {
+            font-size: 12px;
+            color: #999;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(0,0,0,0.1);
+        }
+        
+        .alert-meta {
+            display: inline-block;
+            margin-right: 15px;
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 60px;
+            color: #999;
+            font-size: 18px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #999;
+        }
+        
+        .refresh-info {
+            text-align: center;
+            color: #999;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-box {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .stat-value {
+            font-size: 36px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚨 Alerts</h1>
+        <p>Active alerts and warnings</p>
+    </div>
+    
+    <nav>
+        <ul>
+            <li><a href="/">Dashboard</a></li>
+            <li><a href="/alerts" class="active">Alerts</a></li>
+            <li><a href="/metrics">Metrics</a></li>
+        </ul>
+    </nav>
+    
+    <div class="container">
+        <div class="stats">
+            <div class="stat-box">
+                <div class="stat-value" style="color: #f44336;" id="critical-count">0</div>
+                <div class="stat-label">Critical</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" style="color: #ff9800;" id="warning-count">0</div>
+                <div class="stat-label">Warning</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" style="color: #2196f3;" id="total-count">0</div>
+                <div class="stat-label">Total Active</div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>Active Alerts</h2>
+            <div class="refresh-info">Auto-refresh: 10s</div>
+            <div id="alerts-container" class="loading">Loading alerts...</div>
+        </div>
+    </div>
+    
+    <script>
+        function updateAlerts() {
+            fetch('/api/alerts')
+                .then(response => response.json())
+                .then(data => {
+                    displayAlerts(data.alerts);
+                })
+                .catch(error => {
+                    console.error('Error fetching alerts:', error);
+                    document.getElementById('alerts-container').innerHTML = 
+                        '<div class="no-data">Error loading alerts</div>';
+                });
+        }
+        
+        function displayAlerts(alerts) {
+            const container = document.getElementById('alerts-container');
+            
+            if (!alerts || alerts.length === 0) {
+                container.innerHTML = '<div class="no-data">✓ No active alerts</div>';
+                updateStats(0, 0, 0);
+                return;
+            }
+            
+            // Count by level
+            const critical = alerts.filter(a => a.level === 'critical').length;
+            const warning = alerts.filter(a => a.level === 'warning').length;
+            const info = alerts.filter(a => a.level === 'info').length;
+            
+            updateStats(critical, warning, alerts.length);
+            
+            // Sort by level (critical first) and timestamp (newest first)
+            const levelOrder = { 'critical': 0, 'warning': 1, 'info': 2 };
+            alerts.sort((a, b) => {
+                if (levelOrder[a.level] !== levelOrder[b.level]) {
+                    return levelOrder[a.level] - levelOrder[b.level];
+                }
+                return b.timestamp - a.timestamp;
+            });
+            
+            let html = '';
+            alerts.forEach(alert => {
+                const timestamp = new Date(alert.timestamp * 1000).toLocaleString();
+                
+                html += `
+                    <div class="alert-item alert-${alert.level}">
+                        <div class="alert-header">
+                            <div class="alert-title">${alert.title}</div>
+                            <span class="alert-level level-${alert.level}">${alert.level}</span>
+                        </div>
+                        <div class="alert-message">${alert.message}</div>
+                        <div class="alert-details">
+                            <span class="alert-meta"><strong>Metric:</strong> ${alert.metric}</span>
+                            <span class="alert-meta"><strong>Value:</strong> ${alert.value}</span>
+                            <span class="alert-meta"><strong>Threshold:</strong> ${alert.threshold}</span>
+                            <span class="alert-meta"><strong>Time:</strong> ${timestamp}</span>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        function updateStats(critical, warning, total) {
+            document.getElementById('critical-count').textContent = critical;
+            document.getElementById('warning-count').textContent = warning;
+            document.getElementById('total-count').textContent = total;
+        }
+        
+        // Initial load
+        updateAlerts();
+        
+        // Auto-refresh every 10 seconds
+        setInterval(updateAlerts, 10000);
+    </script>
+</body>
+</html>

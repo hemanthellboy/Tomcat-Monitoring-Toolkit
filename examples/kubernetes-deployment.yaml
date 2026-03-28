@@ -1,0 +1,326 @@
+# Kubernetes Deployment Example for Tomcat Monitoring Toolkit
+# This example shows how to deploy the toolkit in a Kubernetes cluster
+
+---
+# ConfigMap for configuration management
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tomcat-monitor-config
+  namespace: monitoring
+data:
+  config.yaml: |
+    # JMX Connection Settings
+    jmx:
+      host: tomcat-service.default.svc.cluster.local
+      port: 9999
+      readonly: true
+      connection_timeout: 10
+
+    # Tomcat Settings
+    tomcat:
+      access_log_path: /var/log/tomcat/access.log
+      slow_request_threshold: 5000
+      thread_pool_warn_threshold: 0.7
+      thread_pool_critical_threshold: 0.9
+
+    # Monitoring Thresholds
+    monitoring:
+      heap_warn_threshold: 0.7
+      heap_critical_threshold: 0.85
+      oldgen_warn_threshold: 0.75
+      oldgen_critical_threshold: 0.9
+      oom_prediction_enabled: true
+      heap_growth_window: 300
+      oom_prediction_threshold: 3600
+      thread_dump_interval: 30
+      blocked_thread_threshold: 5
+      cpu_warn_threshold: 0.8
+      cpu_critical_threshold: 0.95
+      memory_warn_threshold: 0.8
+      memory_critical_threshold: 0.9
+      disk_warn_threshold: 0.8
+      disk_critical_threshold: 0.9
+
+    # Health Score Weights
+    health_score:
+      heap_weight: 0.25
+      thread_pool_weight: 0.25
+      cpu_weight: 0.2
+      memory_weight: 0.15
+      stuck_threads_weight: 0.15
+
+    # Alerting
+    alerts:
+      enabled: true
+      email:
+        enabled: false
+        smtp_host: smtp.example.com
+        smtp_port: 587
+        smtp_user: monitor@example.com
+        from_addr: tomcat-monitor@example.com
+        to_addrs:
+          - ops@example.com
+        use_tls: true
+      webhook:
+        enabled: true
+        url: https://hooks.slack.com/services/YOUR/WEBHOOK
+        method: POST
+        headers:
+          Content-Type: application/json
+        timeout: 10
+      throttle_minutes: 15
+
+    # Flask UI Settings
+    ui:
+      host: 0.0.0.0
+      port: 5000
+      debug: false
+
+    # Logging
+    logging:
+      level: INFO
+      file: /var/log/tomcat-monitor/monitor.log
+      max_bytes: 10485760
+      backup_count: 5
+
+---
+# Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tomcat-monitor
+  namespace: monitoring
+
+---
+# ClusterRole for reading Tomcat pods
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tomcat-monitor
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list"]
+
+---
+# ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tomcat-monitor
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tomcat-monitor
+subjects:
+  - kind: ServiceAccount
+    name: tomcat-monitor
+    namespace: monitoring
+
+---
+# Deployment for Tomcat Monitoring Toolkit
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tomcat-monitor
+  namespace: monitoring
+  labels:
+    app: tomcat-monitor
+    version: v1
+spec:
+  replicas: 2  # High availability
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: tomcat-monitor
+  template:
+    metadata:
+      labels:
+        app: tomcat-monitor
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "5000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: tomcat-monitor
+      containers:
+        - name: tomcat-monitor
+          image: your-registry/tomcat-monitoring-toolkit:1.0.0
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 5000
+              protocol: TCP
+          
+          # Volume mounts
+          volumeMounts:
+            - name: config
+              mountPath: /app/config.yaml
+              subPath: config.yaml
+            - name: logs
+              mountPath: /var/log/tomcat-monitor
+
+          # Environment variables
+          env:
+            - name: LOG_LEVEL
+              value: INFO
+            - name: FLASK_ENV
+              value: production
+
+          # Resource limits and requests
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+          # Health checks
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          # Security context
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+
+      # Pod security context
+      securityContext:
+        fsGroup: 1000
+        runAsNonRoot: true
+
+      # Volumes
+      volumes:
+        - name: config
+          configMap:
+            name: tomcat-monitor-config
+        - name: logs
+          emptyDir: {}
+
+      # Affinity for pod distribution
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - tomcat-monitor
+                topologyKey: kubernetes.io/hostname
+
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: tomcat-monitor
+  namespace: monitoring
+  labels:
+    app: tomcat-monitor
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 5000
+      targetPort: http
+      protocol: TCP
+  selector:
+    app: tomcat-monitor
+
+---
+# HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: tomcat-monitor
+  namespace: monitoring
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: tomcat-monitor
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+---
+# Ingress for external access
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tomcat-monitor
+  namespace: monitoring
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - tomcat-monitor.example.com
+      secretName: tomcat-monitor-tls
+  rules:
+    - host: tomcat-monitor.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: tomcat-monitor
+                port:
+                  number: 5000
+
+# Usage Instructions:
+# 1. Update image name: your-registry/tomcat-monitoring-toolkit:1.0.0
+# 2. Update ingress hostname: tomcat-monitor.example.com
+# 3. Create namespace: kubectl create namespace monitoring
+# 4. Apply manifests: kubectl apply -f kubernetes-deployment.yaml
+# 5. Check deployment: kubectl get deployment -n monitoring
+# 6. View logs: kubectl logs -f deployment/tomcat-monitor -n monitoring
+# 7. Port forward: kubectl port-forward -n monitoring svc/tomcat-monitor 5000:5000
+# 8. Access dashboard: http://localhost:5000

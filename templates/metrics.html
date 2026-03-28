@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metrics - Tomcat Monitoring Toolkit</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+        
+        nav {
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 0;
+        }
+        
+        nav ul {
+            list-style: none;
+            display: flex;
+        }
+        
+        nav li a {
+            display: block;
+            padding: 15px 25px;
+            text-decoration: none;
+            color: #333;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+        
+        nav li a:hover, nav li a.active {
+            border-bottom-color: #667eea;
+            color: #667eea;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .card h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #555;
+        }
+        
+        .metrics-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .metrics-table th {
+            background: #f5f5f5;
+            padding: 10px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #ddd;
+        }
+        
+        .metrics-table td {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .metrics-table tr:hover {
+            background: #f9f9f9;
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        
+        .refresh-info {
+            text-align: center;
+            color: #999;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+        
+        .code-block {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 Detailed Metrics</h1>
+        <p>Comprehensive system and application metrics</p>
+    </div>
+    
+    <nav>
+        <ul>
+            <li><a href="/">Dashboard</a></li>
+            <li><a href="/alerts">Alerts</a></li>
+            <li><a href="/metrics" class="active">Metrics</a></li>
+        </ul>
+    </nav>
+    
+    <div class="container">
+        <div class="card">
+            <h2>JVM Metrics</h2>
+            <div class="refresh-info">Auto-refresh: 10s</div>
+            <div id="jvm-metrics" class="loading">Loading...</div>
+        </div>
+        
+        <div class="card">
+            <h2>System Metrics</h2>
+            <div id="system-metrics" class="loading">Loading...</div>
+        </div>
+        
+        <div class="card">
+            <h2>Slow Requests (Last 50)</h2>
+            <div id="slow-requests" class="loading">Loading...</div>
+        </div>
+        
+        <div class="card">
+            <h2>Request Statistics</h2>
+            <div id="request-stats" class="loading">Loading...</div>
+        </div>
+        
+        <div class="card">
+            <h2>Raw Metrics (JSON)</h2>
+            <pre id="raw-metrics" class="code-block">Loading...</pre>
+        </div>
+    </div>
+    
+    <script>
+        function updateMetrics() {
+            fetch('/api/metrics')
+                .then(response => response.json())
+                .then(data => {
+                    displayJVMMetrics(data);
+                    displaySystemMetrics(data);
+                    displayRequestStats(data);
+                    displayRawMetrics(data);
+                })
+                .catch(error => {
+                    console.error('Error fetching metrics:', error);
+                });
+            
+            fetch('/api/slow_requests')
+                .then(response => response.json())
+                .then(data => {
+                    displaySlowRequests(data.requests);
+                })
+                .catch(error => {
+                    console.error('Error fetching slow requests:', error);
+                });
+        }
+        
+        function displayJVMMetrics(data) {
+            const container = document.getElementById('jvm-metrics');
+            
+            if (!data) {
+                container.innerHTML = '<div class="no-data">No data available</div>';
+                return;
+            }
+            
+            const heap = data.heap || {};
+            const oldgen = data.oldgen || {};
+            const threadPool = data.thread_pool || {};
+            const oomPred = data.oom_prediction || {};
+            
+            let html = '<table class="metrics-table"><tbody>';
+            
+            // Heap
+            html += '<tr><th colspan="2" style="background: #667eea; color: white;">Heap Memory</th></tr>';
+            html += `<tr><td>Used</td><td>${((heap.used || 0) / (1024*1024)).toFixed(2)} MB</td></tr>`;
+            html += `<tr><td>Max</td><td>${((heap.max || 0) / (1024*1024)).toFixed(2)} MB</td></tr>`;
+            html += `<tr><td>Usage</td><td>${((heap.usage_percent || 0) * 100).toFixed(2)}%</td></tr>`;
+            
+            // OldGen
+            html += '<tr><th colspan="2" style="background: #667eea; color: white;">Old Generation</th></tr>';
+            html += `<tr><td>Used</td><td>${((oldgen.used || 0) / (1024*1024)).toFixed(2)} MB</td></tr>`;
+            html += `<tr><td>Max</td><td>${((oldgen.max || 0) / (1024*1024)).toFixed(2)} MB</td></tr>`;
+            html += `<tr><td>Usage</td><td>${((oldgen.usage_percent || 0) * 100).toFixed(2)}%</td></tr>`;
+            
+            // OOM Prediction
+            html += '<tr><th colspan="2" style="background: #667eea; color: white;">OOM Prediction</th></tr>';
+            if (oomPred.predicted) {
+                html += `<tr><td>Time to OOM</td><td>${(oomPred.time_to_oom_seconds / 60).toFixed(1)} minutes</td></tr>`;
+                html += `<tr><td>Growth Rate</td><td>${(oomPred.growth_rate_mb_per_sec || 0).toFixed(3)} MB/s</td></tr>`;
+            } else {
+                html += '<tr><td colspan="2">No OOM predicted</td></tr>';
+            }
+            
+            // Thread Pool
+            html += '<tr><th colspan="2" style="background: #667eea; color: white;">Thread Pool</th></tr>';
+            html += `<tr><td>Current Threads</td><td>${threadPool.current_threads || 0}</td></tr>`;
+            html += `<tr><td>Busy Threads</td><td>${threadPool.current_busy || 0}</td></tr>`;
+            html += `<tr><td>Max Threads</td><td>${threadPool.max_threads || 0}</td></tr>`;
+            html += `<tr><td>Utilization</td><td>${((threadPool.utilization || 0) * 100).toFixed(2)}%</td></tr>`;
+            
+            // Stuck Threads
+            html += '<tr><th colspan="2" style="background: #667eea; color: white;">Thread Analysis</th></tr>';
+            html += `<tr><td>Stuck Threads</td><td>${data.stuck_threads || 0}</td></tr>`;
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+        
+        function displaySystemMetrics(data) {
+            const container = document.getElementById('system-metrics');
+            
+            if (!data || !data.os) {
+                container.innerHTML = '<div class="no-data">No data available</div>';
+                return;
+            }
+            
+            const cpu = data.os.cpu || {};
+            const memory = data.os.memory || {};
+            const disk = data.os.disk || {};
+            
+            let html = '<table class="metrics-table"><tbody>';
+            
+            // CPU
+            html += '<tr><th colspan="2" style="background: #764ba2; color: white;">CPU</th></tr>';
+            html += `<tr><td>CPU Usage</td><td>${(cpu.cpu_percent || 0).toFixed(2)}%</td></tr>`;
+            html += `<tr><td>CPU Count</td><td>${cpu.cpu_count || 0}</td></tr>`;
+            html += `<tr><td>Load Average (1m)</td><td>${(cpu.load_average_1m || 0).toFixed(2)}</td></tr>`;
+            html += `<tr><td>Load Average (5m)</td><td>${(cpu.load_average_5m || 0).toFixed(2)}</td></tr>`;
+            html += `<tr><td>Load Average (15m)</td><td>${(cpu.load_average_15m || 0).toFixed(2)}</td></tr>`;
+            
+            // Memory
+            html += '<tr><th colspan="2" style="background: #764ba2; color: white;">Memory</th></tr>';
+            html += `<tr><td>Total</td><td>${(memory.total_mb || 0).toFixed(2)} MB</td></tr>`;
+            html += `<tr><td>Available</td><td>${(memory.available_mb || 0).toFixed(2)} MB</td></tr>`;
+            html += `<tr><td>Used</td><td>${(memory.used_mb || 0).toFixed(2)} MB</td></tr>`;
+            html += `<tr><td>Usage</td><td>${(memory.percent || 0).toFixed(2)}%</td></tr>`;
+            
+            // Disk
+            html += '<tr><th colspan="2" style="background: #764ba2; color: white;">Disk</th></tr>';
+            html += `<tr><td>Total</td><td>${(disk.total_gb || 0).toFixed(2)} GB</td></tr>`;
+            html += `<tr><td>Free</td><td>${(disk.free_gb || 0).toFixed(2)} GB</td></tr>`;
+            html += `<tr><td>Used</td><td>${(disk.used_gb || 0).toFixed(2)} GB</td></tr>`;
+            html += `<tr><td>Usage</td><td>${(disk.percent || 0).toFixed(2)}%</td></tr>`;
+            
+            // Network
+            html += '<tr><th colspan="2" style="background: #764ba2; color: white;">System</th></tr>';
+            html += `<tr><td>Process Count</td><td>${data.os.process_count || 0}</td></tr>`;
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+        
+        function displaySlowRequests(requests) {
+            const container = document.getElementById('slow-requests');
+            
+            if (!requests || requests.length === 0) {
+                container.innerHTML = '<div class="no-data">No slow requests detected</div>';
+                return;
+            }
+            
+            let html = '<table class="metrics-table">';
+            html += '<thead><tr><th>Time</th><th>Method</th><th>Path</th><th>Status</th><th>Response Time</th><th>Client IP</th></tr></thead>';
+            html += '<tbody>';
+            
+            requests.forEach(req => {
+                html += `<tr>
+                    <td>${req.timestamp}</td>
+                    <td>${req.method}</td>
+                    <td>${req.path}</td>
+                    <td>${req.status_code}</td>
+                    <td>${req.response_time_ms} ms</td>
+                    <td>${req.client_ip}</td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+        
+        function displayRequestStats(data) {
+            const container = document.getElementById('request-stats');
+            
+            if (!data || !data.requests) {
+                container.innerHTML = '<div class="no-data">No data available</div>';
+                return;
+            }
+            
+            const stats = data.requests;
+            
+            let html = '<table class="metrics-table"><tbody>';
+            html += '<tr><th colspan="2" style="background: #4caf50; color: white;">Request Statistics</th></tr>';
+            html += `<tr><td>Total Requests</td><td>${stats.total_requests || 0}</td></tr>`;
+            html += `<tr><td>Slow Requests</td><td>${stats.slow_requests || 0}</td></tr>`;
+            html += `<tr><td>Average Response Time</td><td>${(stats.avg_response_time_ms || 0).toFixed(2)} ms</td></tr>`;
+            html += `<tr><td>Max Response Time</td><td>${stats.max_response_time_ms || 0} ms</td></tr>`;
+            html += '</tbody></table>';
+            
+            container.innerHTML = html;
+        }
+        
+        function displayRawMetrics(data) {
+            const container = document.getElementById('raw-metrics');
+            container.textContent = JSON.stringify(data, null, 2);
+        }
+        
+        // Initial load
+        updateMetrics();
+        
+        // Auto-refresh every 10 seconds
+        setInterval(updateMetrics, 10000);
+    </script>
+</body>
+</html>

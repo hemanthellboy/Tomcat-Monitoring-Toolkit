@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  tomcat-monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tomcat-monitor
+    ports:
+      - "5000:5000"
+    volumes:
+      # Mount config for easy updates
+      - ./config.yaml:/app/config.yaml:ro
+      # Mount log directory for persistence
+      - tomcat-monitor-logs:/var/log/tomcat-monitor
+      # Mount Tomcat access logs (adjust path as needed)
+      # - /path/to/tomcat/logs:/var/log/tomcat:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    networks:
+      - monitoring
+    security_opt:
+      - no-new-privileges:true
+    # Run as non-root user (defined in Dockerfile)
+    # user: tomcat-monitor is set in Dockerfile
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5000/api/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  tomcat-monitor-logs:
+    driver: local
+
+networks:
+  monitoring:
+    driver: bridge

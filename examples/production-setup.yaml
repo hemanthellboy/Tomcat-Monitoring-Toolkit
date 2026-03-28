@@ -1,0 +1,103 @@
+# Production Setup Configuration Example
+# This is a recommended configuration for production environments
+# Replace placeholder values with your actual environment settings
+
+# JMX Connection Settings
+jmx:
+  host: tomcat-server.example.com  # Replace with your Tomcat server
+  port: 9999  # Ensure JMX is enabled on this port
+  readonly: true  # Read-only access is recommended for monitoring
+  connection_timeout: 10
+
+# Tomcat Settings
+tomcat:
+  access_log_path: /var/log/tomcat/catalina_access.log  # Path to access logs
+  slow_request_threshold: 5000  # milliseconds - alerts if response time exceeds this
+  thread_pool_warn_threshold: 0.7  # 70% - warning threshold
+  thread_pool_critical_threshold: 0.9  # 90% - critical threshold
+
+# Monitoring Thresholds - Production Recommended
+monitoring:
+  # Heap monitoring thresholds
+  heap_warn_threshold: 0.7  # 70% of max heap
+  heap_critical_threshold: 0.85  # 85% of max heap
+  oldgen_warn_threshold: 0.75  # Old generation threshold
+  oldgen_critical_threshold: 0.9
+  
+  # OOM Prediction (Predictive Analytics)
+  oom_prediction_enabled: true
+  heap_growth_window: 300  # seconds (5 minutes) - analyze growth trend
+  oom_prediction_threshold: 3600  # seconds (1 hour) - predict if OOM in 1 hour
+  
+  # Thread monitoring
+  thread_dump_interval: 30  # seconds - how often to collect thread dumps
+  blocked_thread_threshold: 5  # consecutive blocked checks before alert
+  
+  # OS metrics thresholds
+  cpu_warn_threshold: 0.80  # 80%
+  cpu_critical_threshold: 0.95  # 95%
+  memory_warn_threshold: 0.80  # 80%
+  memory_critical_threshold: 0.90  # 90%
+  disk_warn_threshold: 0.80  # 80%
+  disk_critical_threshold: 0.90  # 90%
+
+# Health Score Weights (must sum to 1.0)
+# These weights determine how each component affects overall health score
+health_score:
+  heap_weight: 0.25  # Heap is critical
+  thread_pool_weight: 0.25  # Thread pool saturation is critical
+  cpu_weight: 0.2  # CPU usage
+  memory_weight: 0.15  # System memory
+  stuck_threads_weight: 0.15  # Stuck threads
+
+# Alerting Configuration
+alerts:
+  enabled: true
+  
+  email:
+    enabled: true  # Enable email alerts
+    smtp_host: smtp.gmail.com  # Your SMTP server
+    smtp_port: 587  # Standard SMTP port (use 465 for SSL)
+    smtp_user: your-email@example.com  # Your email account
+    smtp_password: your-app-password  # Use app-specific password for Gmail
+    from_addr: tomcat-monitor@example.com  # From address
+    to_addrs:
+      - ops-team@example.com
+      - senior-ops@example.com
+    use_tls: true  # Use TLS encryption
+  
+  webhook:
+    enabled: true  # Enable webhook alerts
+    url: https://hooks.slack.com/services/YOUR/WEBHOOK/URL  # Slack or custom webhook
+    method: POST
+    headers:
+      Content-Type: application/json
+    timeout: 10
+
+  # Alert throttling - prevent alert fatigue
+  throttle_minutes: 15  # Don't send same alert type more than once per 15 minutes
+
+# Flask UI Settings
+ui:
+  host: 0.0.0.0  # Listen on all interfaces
+  port: 5000  # Dashboard port
+  debug: false  # Disable debug mode in production
+  
+# Logging Configuration
+logging:
+  level: INFO  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  file: /var/log/tomcat-monitor/monitor.log
+  max_bytes: 10485760  # 10MB - rotate logs at this size
+  backup_count: 5  # Keep 5 backup files
+
+# Additional Production Recommendations:
+# 1. Use environment variables for sensitive data (passwords)
+# 2. Set up log rotation to prevent disk space issues
+# 3. Monitor the monitor - add monitoring alerts for the toolkit itself
+# 4. Use a reverse proxy (nginx/Apache) in front of Flask UI
+# 5. Enable HTTPS/SSL for the web dashboard
+# 6. Set up backup and disaster recovery procedures
+# 7. Document your thresholds and why they were chosen
+# 8. Review and adjust thresholds based on baseline metrics
+# 9. Consider multi-monitor setup for redundancy
+# 10. Keep the toolkit updated with latest versions

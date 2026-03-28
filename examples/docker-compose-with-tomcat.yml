@@ -1,0 +1,116 @@
+version: '3.8'
+
+services:
+  # Tomcat Service with JMX enabled
+  tomcat:
+    image: tomcat:9-jdk11-openjdk
+    container_name: tomcat-server
+    ports:
+      - "8080:8080"  # HTTP
+      - "8443:8443"  # HTTPS
+      - "9999:9999"  # JMX Port
+    environment:
+      CATALINA_OPTS: >
+        -Dcom.sun.management.jmxremote=true
+        -Dcom.sun.management.jmxremote.port=9999
+        -Dcom.sun.management.jmxremote.rmi.port=9999
+        -Dcom.sun.management.jmxremote.authenticate=false
+        -Dcom.sun.management.jmxremote.ssl=false
+        -Dcom.sun.management.jmxremote.local.only=false
+        -Djava.rmi.server.hostname=tomcat
+    volumes:
+      - tomcat-logs:/usr/local/tomcat/logs
+      - ./webapps:/usr/local/tomcat/webapps  # Your applications
+    networks:
+      - monitoring-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Tomcat Monitoring Toolkit
+  tomcat-monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tomcat-monitor
+    ports:
+      - "5000:5000"  # Dashboard
+    depends_on:
+      - tomcat
+    environment:
+      # Optional: Use environment variables for sensitive data
+      # SMTP_PASSWORD: ${SMTP_PASSWORD}
+      # WEBHOOK_URL: ${WEBHOOK_URL}
+      LOG_LEVEL: INFO
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - monitor-logs:/var/log/tomcat-monitor
+      - tomcat-logs:/var/log/tomcat:ro  # Read access to Tomcat logs
+    networks:
+      - monitoring-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - monitoring-network
+    restart: unless-stopped
+
+  # Optional: Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_USER: admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - monitoring-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+volumes:
+  tomcat-logs:
+  monitor-logs:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  monitoring-network:
+    driver: bridge
+
+# Usage Instructions:
+# 1. Ensure you have a config.yaml file in the same directory
+# 2. Optional: Create a prometheus.yml for Prometheus configuration
+# 3. Run: docker-compose up -d
+# 4. Access services:
+#    - Tomcat: http://localhost:8080
+#    - Tomcat Monitor Dashboard: http://localhost:5000
+#    - Prometheus: http://localhost:9090
+#    - Grafana: http://localhost:3000 (login: admin/admin)
+# 5. Monitor logs: docker-compose logs -f tomcat-monitor
+# 6. Stop: docker-compose down
